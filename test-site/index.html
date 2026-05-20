@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AuditPilot Multilingual Test Site Portal</title>
+  <style>
+    body {
+      background-color: #0E0E10;
+      color: #F4F4F5;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    h1 {
+      color: #5B8DEF;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+    }
+    p {
+      color: #71717A;
+      margin-bottom: 40px;
+      font-size: 1.2rem;
+      max-width: 600px;
+    }
+    .links-container {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+    .portal-card {
+      background-color: #1A1A1F;
+      border: 1px solid #2E2E38;
+      border-radius: 12px;
+      padding: 30px;
+      width: 160px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .portal-card:hover {
+      border-color: #5B8DEF;
+      transform: translateY(-5px);
+    }
+    .lang-code {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #5B8DEF;
+      margin-bottom: 10px;
+    }
+    .lang-name {
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h1>AuditPilot Test Portal</h1>
+  <p>Select a localized landing page to start your offline QA automation testing.</p>
+  <div class="links-container">
+    <a href="http://localhost:3000/en/index.html" class="portal-card">
+      <div class="lang-code">EN</div>
+      <div class="lang-name">English</div>
+    </a>
+    <a href="http://localhost:3000/fr/index.html" class="portal-card">
+      <div class="lang-code">FR</div>
+      <div class="lang-name">Français</div>
+    </a>
+    <a href="http://localhost:3000/nl/index.html" class="portal-card">
+      <div class="lang-code">NL</div>
+      <div class="lang-name">Nederlands</div>
+    </a>
+  </div>
+</body>
+</html>
