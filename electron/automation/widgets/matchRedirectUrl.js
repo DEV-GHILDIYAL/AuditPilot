@@ -11,7 +11,7 @@ async function execute(page, config, rowData) {
   }
   
   const matchType = config.matchType || 'contains'; // 'exact', 'starts-with', 'contains'
-  const timeout = config.elementWaitTimeout || 5000;
+  const timeout = config.timeout || config.elementWaitTimeout || 5000;
   
   try {
     // Locate the element to click

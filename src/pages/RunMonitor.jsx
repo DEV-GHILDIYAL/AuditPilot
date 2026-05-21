@@ -6,6 +6,7 @@ function RunMonitor({ setActiveTab }) {
   const { activeProject, runState, pauseExecution, stopExecution } = useProjectStore();
   const [logsCollapsed, setLogsCollapsed] = useState(false);
   const [scrollLock, setScrollLock] = useState(true);
+  const [activeWorkers, setActiveWorkers] = useState(0);
   const logEndRef = useRef(null);
 
   useEffect(() => {
@@ -13,6 +14,20 @@ function RunMonitor({ setActiveTab }) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [runState.logs, scrollLock]);
+
+  useEffect(() => {
+    if (window.api.onWorkerCount) {
+      window.api.onWorkerCount(({ activeCount }) => {
+        setActiveWorkers(activeCount);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (runState.status !== 'RUNNING') {
+      setActiveWorkers(0);
+    }
+  }, [runState.status]);
 
   if (!activeProject) {
     return (
@@ -49,7 +64,7 @@ function RunMonitor({ setActiveTab }) {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn h-[calc(100vh-9rem)] flex flex-col">
+    <div className="space-y-6 animate-fadeIn">
       
       {/* Top Section: Progress Bar & Controls */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-apSurface border border-apBorder p-6 rounded-xl shadow-md">
@@ -57,13 +72,19 @@ function RunMonitor({ setActiveTab }) {
         {/* Progress Display */}
         <div className="md:col-span-3 space-y-4">
           <div className="flex justify-between items-center text-xs font-mono">
-            <span className="text-apTextMuted">STATUS: 
+            <span className="text-apTextMuted flex items-center">
+              STATUS: 
               <span className={`ml-1.5 font-bold ${
                 status === 'RUNNING' ? 'text-apAccent animate-pulse' : 
                 status === 'PAUSED' ? 'text-apWarning' : 
                 status === 'COMPLETE' ? 'text-apSuccess' : 
                 status === 'STOPPED' ? 'text-apFailure' : 'text-apTextMuted'
               }`}>{status}</span>
+              {status === 'RUNNING' && activeWorkers > 0 && (
+                <span className="ml-3 px-2 py-0.5 bg-apAccent/10 text-apAccent border border-apAccent/20 text-[9px] font-bold font-mono rounded animate-pulse inline-flex items-center gap-1">
+                  ⚡ {activeWorkers} {activeWorkers === 1 ? 'WORKER ACTIVE' : 'WORKERS ACTIVE'}
+                </span>
+              )}
             </span>
             <span>{progress.processed} / {progress.total} ROWS ({percentComplete}%)</span>
           </div>
@@ -122,13 +143,13 @@ function RunMonitor({ setActiveTab }) {
       </div>
 
       {/* Middle Section: Scrolling Live Monitor Grid */}
-      <div className="flex-1 min-h-0 bg-apSurface border border-apBorder rounded-xl overflow-hidden flex flex-col">
+      <div className="bg-apSurface border border-apBorder rounded-xl overflow-hidden flex flex-col" style={{ minHeight: '320px' }}>
         <div className="flex items-center gap-2 px-6 py-3 border-b border-apBorder bg-apBackground/30 text-xs font-semibold uppercase tracking-wider text-apTextMuted">
           <Scroll className="w-4 h-4 text-apAccent" />
           Audit Grid Stream
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="overflow-auto" style={{ maxHeight: '400px' }}>
           {results.length === 0 ? (
             <div className="h-full flex flex-col justify-center items-center text-center p-8">
               <span className="text-xs text-apTextMuted animate-pulse font-mono">

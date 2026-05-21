@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useProjectStore } from '../store/projectStore';
-import { Settings as SettingsIcon, Shield, FolderOpen, Save, Check, Volume2, Info } from 'lucide-react';
+import { Settings as SettingsIcon, Shield, FolderOpen, Save, Check, Volume2, Info, Palette } from 'lucide-react';
+import { applyTheme } from '../utils/theme';
 
 function Settings() {
   const { settings, saveSettings, initStore } = useProjectStore();
@@ -10,20 +11,26 @@ function Settings() {
   const [parallelWorkers, setParallelWorkers] = useState(settings.parallelWorkers || 1);
   const [autoSaveLocation, setAutoSaveLocation] = useState(settings.autoSaveLocation || '');
   const [includeScreenshots, setIncludeScreenshots] = useState(settings.includeScreenshots || false);
+  const [theme, setTheme] = useState(settings.theme || 'dark');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // On mount: force a fresh load from disk, then sync into local form state
   useEffect(() => {
-    // Make sure we have latest loaded settings on mount
-    initStore().then(() => {
-      const latest = useProjectStore.getState().settings;
-      setPageLoadTimeout(latest.pageLoadTimeout / 1000);
-      setElementWaitTimeout(latest.elementWaitTimeout / 1000);
-      setStopOnFail(latest.stopOnFail);
-      setParallelWorkers(latest.parallelWorkers || 1);
-      setAutoSaveLocation(latest.autoSaveLocation || '');
-      setIncludeScreenshots(latest.includeScreenshots || false);
-    });
-  }, [initStore]);
+    initStore();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Whenever the store's settings object is updated (by initStore or saveSettings),
+  // sync the local controlled form fields so they always reflect the persisted values
+  useEffect(() => {
+    setPageLoadTimeout(settings.pageLoadTimeout / 1000);
+    setElementWaitTimeout(settings.elementWaitTimeout / 1000);
+    setStopOnFail(settings.stopOnFail);
+    setParallelWorkers(settings.parallelWorkers || 1);
+    setAutoSaveLocation(settings.autoSaveLocation || '');
+    setIncludeScreenshots(settings.includeScreenshots || false);
+    setTheme(settings.theme || 'dark');
+  }, [settings]); // re-syncs whenever Zustand store settings reference changes
+
 
   const handleSelectFolder = async () => {
     try {
@@ -43,7 +50,8 @@ function Settings() {
       stopOnFail,
       parallelWorkers,
       autoSaveLocation,
-      includeScreenshots
+      includeScreenshots,
+      theme
     };
     await saveSettings(updated);
     setSaveSuccess(true);
@@ -142,43 +150,70 @@ function Settings() {
               </button>
             </div>
 
-            {/* Screenshots on fail (Phase 2 config info) */}
-            <div className="flex items-center justify-between p-3.5 rounded-lg bg-apBackground/30 border border-apBorder/60 opacity-60">
+            {/* Screenshots on fail */}
+            <div className="flex items-center justify-between p-3.5 rounded-lg bg-apBackground/30 border border-apBorder/60">
               <div className="max-w-md">
-                <h4 className="text-xs font-bold text-apTextPrimary">Capture Screenshots on Fail (Phase 2)</h4>
+                <h4 className="text-xs font-bold text-apTextPrimary">Capture Screenshots on Fail</h4>
                 <p className="text-[10px] text-apTextMuted leading-normal mt-0.5">
                   Saves high-res viewport screenshot files to the local project folder whenever a widget reports failure, linking paths to the report sheet.
                 </p>
               </div>
               <button
-                disabled
-                className="w-11 h-6 rounded-full bg-apBorder relative flex items-center px-1 cursor-not-allowed"
+                onClick={() => setIncludeScreenshots(!includeScreenshots)}
+                className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-1 ${includeScreenshots ? 'bg-apAccent' : 'bg-apBorder'}`}
               >
-                <div className="w-4.5 h-4.5 bg-apBackground rounded-full shadow-md" />
+                <div className={`w-4.5 h-4.5 bg-apBackground rounded-full shadow-md transition-transform transform ${includeScreenshots ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
 
             {/* Parallel Workers */}
             <div className="flex items-center justify-between p-3.5 rounded-lg bg-apBackground/30 border border-apBorder/60">
               <div className="max-w-md">
-                <h4 className="text-xs font-bold text-apTextPrimary">Parallel Execution workers</h4>
+                <h4 className="text-xs font-bold text-apTextPrimary">Parallel Execution Workers</h4>
                 <p className="text-[10px] text-apTextMuted leading-normal mt-0.5">
                   Distributes sheet auditing across multiple isolated Chromium threads (Advanced performance setting).
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <select
-                  disabled
+              <div className="flex items-center gap-3 w-48">
+                <input
+                  type="range"
+                  min="1"
+                  max="4"
                   value={parallelWorkers}
                   onChange={(e) => setParallelWorkers(parseInt(e.target.value, 10))}
-                  className="bg-apBackground border border-apBorder px-3 py-1.5 rounded text-xs text-apTextMuted cursor-not-allowed focus:outline-none"
-                >
-                  <option value={1}>1 Worker (Sequential)</option>
-                  <option value={2}>2 Workers</option>
-                  <option value={4}>4 Workers</option>
-                </select>
+                  className="flex-1 bg-apBackground accent-apAccent h-1.5 rounded-lg appearance-none cursor-pointer"
+                />
+                <span className="font-mono text-xs text-apAccent bg-apBackground border border-apBorder px-2.5 py-1 rounded w-20 text-center">
+                  {parallelWorkers} {parallelWorkers === 1 ? 'Worker' : 'Workers'}
+                </span>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Appearance & Theming */}
+        <section className="bg-apSurface border border-apBorder rounded-xl p-6 space-y-4 shadow-md">
+          <h3 className="text-xs font-mono font-bold text-apTextMuted uppercase tracking-wider flex items-center gap-2">
+            <Palette className="w-4 h-4 text-apAccent" />
+            Appearance & Theming
+          </h3>
+          <div className="flex items-center justify-between p-3.5 rounded-lg bg-apBackground/30 border border-apBorder/60">
+            <div className="max-w-md">
+              <h4 className="text-xs font-bold text-apTextPrimary">Global Color Mode</h4>
+              <p className="text-[10px] text-apTextMuted leading-normal mt-0.5">
+                Switch between Dark Mode (sleek contrast) and Light Mode (high daylight visibility).
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const nextTheme = theme === 'dark' ? 'light' : 'dark';
+                setTheme(nextTheme);
+                applyTheme(nextTheme);
+              }}
+              className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-1 ${theme === 'light' ? 'bg-apAccent' : 'bg-apBorder'}`}
+            >
+              <div className={`w-4.5 h-4.5 bg-apBackground rounded-full shadow-md transition-transform transform ${theme === 'light' ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
           </div>
         </section>
 

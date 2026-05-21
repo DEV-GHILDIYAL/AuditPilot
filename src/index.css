@@ -2,27 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Additional custom styles */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Theme CSS Variables
+   :root = dark theme (default)
+   [data-theme="light"] = light theme overrides
+   Applied to <html> element via data-theme attribute.
+───────────────────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --ap-background:    #0E0E10;
+  --ap-surface:       #1A1A1F;
+  --ap-border:        #2E2E38;
+  --ap-accent:        #5B8DEF;
+  --ap-success:       #34D399;
+  --ap-failure:       #F87171;
+  --ap-warning:       #FBBF24;
+  --ap-text-primary:  #F4F4F5;
+  --ap-text-muted:    #71717A;
+
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --ap-background:    #F4F4F7;
+  --ap-surface:       #FFFFFF;
+  --ap-border:        #E4E4E7;
+  --ap-accent:        #3B70D4;
+  --ap-success:       #059669;
+  --ap-failure:       #DC2626;
+  --ap-warning:       #D97706;
+  --ap-text-primary:  #18181B;
+  --ap-text-muted:    #52525B;
+
+  color-scheme: light;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base Body Styles
+───────────────────────────────────────────────────────────────────────────── */
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0E0E10;
-  color: #F4F4F5;
+  background-color: var(--ap-background);
+  color: var(--ap-text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom scrollbar for data dense views */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Custom Scrollbar
+───────────────────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0E0E10;
+  background: var(--ap-background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #2E2E38;
+  background: var(--ap-border);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #5B8DEF;
+  background: var(--ap-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   React Flow Edge Animation
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes dash {
+  from { stroke-dashoffset: 10; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dash 1s linear infinite;
+}
+
+/* React Flow canvas canvas uses CSS var for edge color */
+.react-flow {
+  --xy-edge-stroke-default: var(--ap-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Fade-in animation (used on page mounts)
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out both;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Light-mode: select/input background override
+   (Tailwind bg-apBackground still works via CSS var, but native
+    browser controls like <select> need an explicit background on light)
+───────────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] select,
+[data-theme="light"] input[type="text"],
+[data-theme="light"] input[type="number"],
+[data-theme="light"] input[type="range"] {
+  color-scheme: light;
 }

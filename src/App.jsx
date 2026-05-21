@@ -8,14 +8,21 @@ import FlowBuilder from './pages/FlowBuilder';
 import RunMonitor from './pages/RunMonitor';
 import Report from './pages/Report';
 import Settings from './pages/Settings';
+import { applyTheme } from './utils/theme';
 
 function App() {
   const [activeTab, setActiveTab] = useState('home');
-  const { initStore, runState } = useProjectStore();
+  const { initStore, runState, settings } = useProjectStore();
 
   useEffect(() => {
     initStore();
   }, [initStore]);
+
+  useEffect(() => {
+    if (settings && settings.theme) {
+      applyTheme(settings.theme);
+    }
+  }, [settings?.theme]);
 
   const navigation = [
     { id: 'home', label: 'Dashboard', icon: HomeIcon },
@@ -102,7 +109,7 @@ function App() {
       </aside>
 
       {/* Main Content Pane */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* TopBar */}
         <header className="h-16 bg-apSurface border-b border-apBorder flex items-center justify-between px-8 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -118,12 +125,22 @@ function App() {
           </div>
         </header>
 
-        {/* Content Area */}
-        <main className="flex-1 overflow-auto p-8 bg-apBackground min-w-0">
-          <div className="max-w-6xl mx-auto h-full">
-            {renderActiveContent()}
-          </div>
-        </main>
+        {/* Content Area:
+            - Flow tab: overflow-hidden so React Flow canvas fills the pane without page scroll
+            - All other tabs: overflow-y-auto so content scrolls when window is small */}
+        {activeTab === 'flow' ? (
+          <main className="flex-1 overflow-hidden bg-apBackground min-w-0 p-2 min-h-0">
+            <div className="w-full h-full">
+              {renderActiveContent()}
+            </div>
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto bg-apBackground min-w-0 p-8">
+            <div className="max-w-6xl mx-auto">
+              {renderActiveContent()}
+            </div>
+          </main>
+        )}
       </div>
     </div>
   );

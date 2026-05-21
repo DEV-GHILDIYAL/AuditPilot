@@ -22,9 +22,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.removeAllListeners('run:complete');
     ipcRenderer.on('run:complete', (event, value) => callback(value));
   },
+  onWorkerCount: (callback) => {
+    ipcRenderer.removeAllListeners('run:workers');
+    ipcRenderer.on('run:workers', (event, value) => callback(value));
+  },
   
   // Report Export
-  exportReport: (reportData, outputPath) => ipcRenderer.invoke('report:export', { reportData, outputPath }),
+  exportReport: (reportData, folder, filename) => ipcRenderer.invoke('report:export', { reportData, folder, filename }),
+  
+  // Get system Downloads path from main process (path module not available in renderer)
+  getDownloadsPath: () => ipcRenderer.invoke('app:get-downloads-path'),
   
   // Dialog for output directory
   selectDirectory: () => ipcRenderer.invoke('file:select-directory'),
@@ -34,5 +41,9 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveProject: (project) => ipcRenderer.invoke('project:save', project),
   getProjects: () => ipcRenderer.invoke('projects:get'),
-  deleteProject: (id) => ipcRenderer.invoke('project:delete', id)
+  deleteProject: (id) => ipcRenderer.invoke('project:delete', id),
+  
+  // Visual Flow Persistence
+  saveFlow: (flow) => ipcRenderer.invoke('flow:save', flow),
+  getFlow: () => ipcRenderer.invoke('flow:get')
 });

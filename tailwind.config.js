@@ -4,18 +4,22 @@ module.exports = {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  // Use data-theme attribute on <html> to switch themes at runtime via CSS vars
+  darkMode: ['attribute', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        apBackground: '#0E0E10',
-        apSurface: '#1A1A1F',
-        apBorder: '#2E2E38',
-        apAccent: '#5B8DEF',
-        apSuccess: '#34D399',
-        apFailure: '#F87171',
-        apWarning: '#FBBF24',
-        apTextPrimary: '#F4F4F5',
-        apTextMuted: '#71717A',
+        // All colors reference CSS variables so they update instantly when data-theme changes.
+        // Values are defined in index.css under :root (dark) and [data-theme="light"] (light).
+        apBackground:   'var(--ap-background)',
+        apSurface:      'var(--ap-surface)',
+        apBorder:       'var(--ap-border)',
+        apAccent:       'var(--ap-accent)',
+        apSuccess:      'var(--ap-success)',
+        apFailure:      'var(--ap-failure)',
+        apWarning:      'var(--ap-warning)',
+        apTextPrimary:  'var(--ap-text-primary)',
+        apTextMuted:    'var(--ap-text-muted)',
       },
       fontFamily: {
         sans: ['"DM Sans"', 'sans-serif'],

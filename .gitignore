@@ -20,7 +20,8 @@ tests/_output/
 
 # Build and packaging outputs
 dist/
-dist-electron/
+dist-electron/*
+!dist-electron/*.exe
 out/
 build/
 release/

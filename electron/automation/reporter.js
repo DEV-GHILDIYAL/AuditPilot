@@ -7,7 +7,7 @@ const path = require('path');
  * Formats results and exports standard-compliant reports with cell annotations.
  */
 function exportReport(reportData, outputPath) {
-  // Columns: Row # | Language | Page URL | Open URL | Find Text | Find Button | Match Redirect | Overall | Fail Reason
+  // Columns: Row # | Language | Page URL | Open URL | Find Text | Find Button | Match Redirect | Overall | Fail Reason | Screenshot Path
   const headers = [
     "Row #", 
     "Language", 
@@ -17,7 +17,8 @@ function exportReport(reportData, outputPath) {
     "Find Button", 
     "Match Redirect", 
     "Overall Status", 
-    "Fail Reason"
+    "Fail Reason",
+    "Screenshot Path"
   ];
   
   const rows = [];
@@ -44,7 +45,8 @@ function exportReport(reportData, outputPath) {
       row.results.findButton.pass === true ? "PASS" : (row.results.findButton.pass === false ? "FAIL" : "SKIPPED"),
       row.results.matchRedirectUrl.pass === true ? "PASS" : (row.results.matchRedirectUrl.pass === false ? "FAIL" : "SKIPPED"),
       row.status,
-      failReason
+      failReason,
+      row.results.screenshotOnFail?.screenshotPath || ""
     ]);
   });
   

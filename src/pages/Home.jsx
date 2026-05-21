@@ -59,6 +59,22 @@ function Home({ setActiveTab }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((proj) => {
             const summary = proj.lastRunSummary;
+            
+            // Determine badge colors based on passRate
+            let badgeStyle = 'bg-apBackground border border-apBorder text-apTextMuted';
+            if (summary) {
+              const rate = summary.passRate;
+              if (rate >= 80) {
+                badgeStyle = 'bg-apSuccess/10 text-apSuccess border border-apSuccess/20';
+              } else if (rate >= 50) {
+                badgeStyle = 'bg-apWarning/10 text-apWarning border border-apWarning/20';
+              } else {
+                badgeStyle = 'bg-apFailure/10 text-apFailure border border-apFailure/20';
+              }
+            }
+
+            const fileName = proj.filePath ? proj.filePath.split(/[\\/]/).pop() : 'No Excel uploaded';
+
             return (
               <div
                 key={proj.id}
@@ -67,7 +83,7 @@ function Home({ setActiveTab }) {
                 <div>
                   {/* Card Header */}
                   <div className="flex justify-between items-start mb-4">
-                    <div className="p-2.5 rounded-lg bg-apBackground border border-apBorder text-apAccent">
+                    <div className="p-2.5 rounded-lg bg-apBackground border border-apBorder text-apAccent shadow-inner group-hover:scale-105 transition-transform duration-250">
                       <FileSpreadsheet className="w-5 h-5" />
                     </div>
                     <button
@@ -87,42 +103,53 @@ function Home({ setActiveTab }) {
                   <h3 className="font-bold text-sm text-apTextPrimary tracking-wide truncate group-hover:text-apAccent transition-colors">
                     {proj.name}
                   </h3>
-                  <div className="flex items-center gap-4 text-[10px] font-mono text-apTextMuted mt-3">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {proj.lastRunDate || 'Never Audited'}
-                    </span>
-                    <span>ROWS: {proj.totalCount || 0}</span>
+                  <div className="flex flex-col gap-2 mt-4">
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-apTextMuted">
+                      <Calendar className="w-3.5 h-3.5 text-apTextMuted/70" />
+                      <span>RUN: {proj.lastRunDate || 'Never Audited'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono text-apTextMuted">
+                      <span className="truncate max-w-[150px]" title={fileName}>FILE: {fileName}</span>
+                      <span className="font-bold shrink-0">ROWS: {proj.totalCount || 0}</span>
+                    </div>
                   </div>
+
+                  {/* Pass/Fail Visual Micro Bar */}
+                  {summary && (
+                    <div className="mt-4 w-full bg-apBackground h-1 rounded overflow-hidden flex border border-apBorder/30">
+                      <div className="bg-apSuccess" style={{ width: `${summary.passRate}%` }} />
+                      <div className="bg-apFailure" style={{ width: `${100 - summary.passRate}%` }} />
+                    </div>
+                  )}
                 </div>
 
                 {/* Bottom stats / Open action */}
                 <div className="border-t border-apBorder mt-6 pt-4 flex items-center justify-between">
                   {summary ? (
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-apSuccess">
+                      <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-apSuccess bg-apSuccess/5 px-1.5 py-0.5 rounded border border-apSuccess/10">
                         <CheckCircle className="w-3 h-3" />
                         {summary.passed}
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-apFailure">
+                      <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-apFailure bg-apFailure/5 px-1.5 py-0.5 rounded border border-apFailure/10">
                         <XCircle className="w-3 h-3" />
                         {summary.failed}
                       </div>
-                      <span className="text-[10px] font-mono font-bold bg-apAccent/10 text-apAccent px-1.5 py-0.5 rounded ml-1">
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ml-1 tracking-wider uppercase ${badgeStyle}`}>
                         {summary.passRate}% PASS
                       </span>
                     </div>
                   ) : (
-                    <span className="text-[10px] font-mono text-apTextMuted bg-apBackground border border-apBorder px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono text-apTextMuted bg-apBackground border border-apBorder px-2.5 py-0.5 rounded uppercase tracking-wider">
                       UNRUN
                     </span>
                   )}
 
                   <button
                     onClick={() => handleOpenProject(proj)}
-                    className="flex items-center gap-1 text-[10px] font-bold font-mono tracking-wider text-apTextPrimary group-hover:text-apAccent transition-colors"
+                    className="flex items-center gap-1 text-[10px] font-bold font-mono tracking-wider text-apTextPrimary hover:text-apAccent transition-colors"
                   >
-                    CONFIGURE <Play className="w-3 h-3" />
+                    OPEN <Play className="w-3 h-3 fill-current" />
                   </button>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useFlowStore } from './flowStore';
 
 // Helper: Parse row range strings like "2-10, 15, 20-30" into sorted unique row indices
 export function parseRowRanges(rangeStr, totalDataRows) {
@@ -50,7 +51,8 @@ export const useProjectStore = create((set, get) => ({
     stopOnFail: true,
     parallelWorkers: 1,
     autoSaveLocation: '',
-    includeScreenshots: false
+    includeScreenshots: false,
+    theme: 'dark'
   },
   projects: [],
   
@@ -344,14 +346,18 @@ export const useProjectStore = create((set, get) => ({
     });
 
     // Launch actual IPC call
+    const flow = useFlowStore.getState().getOrderedSequence();
     window.api.startRun({
       filePath: active.filePath,
       selectedRanges: active.selectedRanges,
       columnMap: active.columnMap,
+      flow,
       settings: {
         pageLoadTimeout: settings.pageLoadTimeout,
         elementWaitTimeout: settings.elementWaitTimeout,
-        stopOnFail: settings.stopOnFail
+        stopOnFail: settings.stopOnFail,
+        includeScreenshots: settings.includeScreenshots,
+        parallelWorkers: settings.parallelWorkers || 1
       }
     });
   },
@@ -380,15 +386,25 @@ export const useProjectStore = create((set, get) => ({
     const results = get().runState.results;
     const settings = get().settings;
     if (results.length === 0) return { success: false, message: 'No run outcomes available to export.' };
-    
-    // Choose output path: use settings auto-save location or fallback to documents
-    const timestamp = new Date().toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '');
+
+    // Generate timestamped filename
+    const timestamp = new Date().toISOString().replace(/[T:]/g, '_').replace(/\..+/, '');
     const filename = `audit_report_${timestamp}.xlsx`;
-    const folder = settings.autoSaveLocation || window.api.getPath('documents');
-    const fullPath = path ? path.join(folder, filename) : folder + '\\' + filename;
-    
+
+    // Resolve folder: use configured path or ask main process for Downloads folder
+    // path.join is NOT available in renderer — main process assembles the full path
+    let folder = settings.autoSaveLocation || '';
+    if (!folder) {
+      try {
+        folder = await window.api.getDownloadsPath();
+      } catch (e) {
+        folder = '';
+      }
+    }
+
     try {
-      const res = await window.api.exportReport(results, fullPath);
+      // Pass folder + filename separately; main.js joins them with Node path
+      const res = await window.api.exportReport(results, folder, filename);
       return res;
     } catch (e) {
       return { success: false, message: e.message };

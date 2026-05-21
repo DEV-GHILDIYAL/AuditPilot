@@ -14,6 +14,12 @@ class FlowRunner {
     this.filePath = config.filePath;
     this.selectedRanges = config.selectedRanges || []; // Array of resolved 1-based row numbers
     this.columnMap = config.columnMap || {};
+    this.flow = config.flow || [
+      { id: 'node_open', type: 'openUrl', config: {} },
+      { id: 'node_text', type: 'findText', config: {} },
+      { id: 'node_btn', type: 'findButton', config: {} },
+      { id: 'node_redirect', type: 'matchRedirectUrl', config: {} }
+    ];
     this.settings = config.settings || {
       pageLoadTimeout: 30000,
       elementWaitTimeout: 5000,
@@ -56,6 +62,170 @@ class FlowRunner {
     this.resume(); // Resume if paused so it can break the loop
   }
 
+  async processRow(row, browser) {
+    // Map column headers to generic role keys
+    const mappedData = {};
+    for (const [role, colHeader] of Object.entries(this.columnMap)) {
+      if (colHeader && colHeader !== 'ignore') {
+        mappedData[role] = row.data[colHeader] || '';
+      }
+    }
+
+    this.win.webContents.send('run:log', { message: `--- [Row ${row.rowNumber}] Starting audit [Lang: ${mappedData.language || 'N/A'}] ---`, level: 'info' });
+
+    // Initialize per-row context for isolation
+    const context = await browser.newContext();
+    
+    try {
+      const page = await context.newPage();
+      page.setDefaultTimeout(this.settings.elementWaitTimeout || 5000);
+
+      const results = {
+        openUrl: { pass: null, reason: 'SKIPPED' },
+        findText: { pass: null, reason: 'SKIPPED' },
+        findButton: { pass: null, reason: 'SKIPPED' },
+        matchRedirectUrl: { pass: null, reason: 'SKIPPED' },
+        screenshotOnFail: { pass: null, reason: 'SKIPPED' }
+      };
+
+      let continueFlow = true;
+      let rowHasFailed = false;
+
+      for (let stepIndex = 0; stepIndex < this.flow.length; stepIndex++) {
+        const step = this.flow[stepIndex];
+        const { type, config } = step;
+
+        // If we should stop on fail, skip remaining steps (except screenshotOnFail on failed row)
+        if (!continueFlow && this.settings.stopOnFail) {
+          if (type === 'screenshotOnFail' && rowHasFailed) {
+            // Keep executing screenshot
+          } else {
+            continue;
+          }
+        }
+
+        // Map standard widget executors
+        let widgetExecutor = null;
+        if (type === 'openUrl') widgetExecutor = openUrlWidget;
+        else if (type === 'findText') widgetExecutor = findTextWidget;
+        else if (type === 'findButton') widgetExecutor = findButtonWidget;
+        else if (type === 'matchRedirectUrl') widgetExecutor = matchRedirectUrlWidget;
+        else if (type === 'screenshotOnFail') {
+          try {
+            widgetExecutor = require('./widgets/screenshotOnFail');
+          } catch (err) {
+            this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Failed to load screenshot widget: ${err.message}`, level: 'error' });
+          }
+        }
+
+        if (!widgetExecutor) {
+          this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Skipping unknown widget type: ${type}`, level: 'warn' });
+          continue;
+        }
+
+        const combinedConfig = {
+          ...this.settings,
+          ...config
+        };
+
+        this.win.webContents.send('run:log', { 
+          message: `[Row ${row.rowNumber}] [Step ${stepIndex + 1}/${this.flow.length}] Executing ${type}...`, 
+          level: 'info' 
+        });
+
+        try {
+          let res;
+          if (type === 'screenshotOnFail') {
+            const screenshotPath = path.join(
+              path.dirname(this.filePath),
+              'screenshots',
+              `row_${row.rowNumber}_fail.png`
+            );
+            if (rowHasFailed) {
+              res = await widgetExecutor.execute(page, combinedConfig, mappedData, { screenshotPath });
+            } else {
+              res = { pass: true, reason: 'SKIPPED (Row did not fail)' };
+            }
+          } else {
+            res = await widgetExecutor.execute(page, combinedConfig, mappedData);
+          }
+
+          results[type] = res;
+
+          if (res && res.pass === false) {
+            rowHasFailed = true;
+            continueFlow = false;
+            this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Step ${type} FAILED: ${res.reason}`, level: 'error' });
+          } else if (res && res.pass === true) {
+            this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Step ${type} PASSED`, level: 'info' });
+          }
+        } catch (err) {
+          rowHasFailed = true;
+          continueFlow = false;
+          results[type] = { pass: false, reason: err.message };
+          this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Step ${type} CRASHED: ${err.message}`, level: 'error' });
+        }
+      }
+
+      // Safety auto-screenshot fallback if global settings specify includeScreenshots and row failed
+      if (rowHasFailed && this.settings.includeScreenshots && results.screenshotOnFail.pass === null) {
+        try {
+          const screenshotPath = path.join(
+            path.dirname(this.filePath),
+            'screenshots',
+            `row_${row.rowNumber}_fail.png`
+          );
+          this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Auto-capturing failure screenshot...`, level: 'info' });
+          const screenshotExecutor = require('./widgets/screenshotOnFail');
+          const res = await screenshotExecutor.execute(page, this.settings, mappedData, { screenshotPath });
+          results.screenshotOnFail = res;
+        } catch (err) {
+          this.win.webContents.send('run:log', { message: `[Row ${row.rowNumber}] Auto-screenshot capture failed: ${err.message}`, level: 'error' });
+        }
+      }
+
+      const overallPass = !rowHasFailed;
+      const status = overallPass ? 'PASS' : 'FAIL';
+      
+      this.win.webContents.send('run:row-result', {
+        rowNumber: row.rowNumber,
+        language: mappedData.language || 'N/A',
+        url: mappedData.page_url || 'N/A',
+        results,
+        status
+      });
+
+      this.win.webContents.send('run:log', { 
+        message: `Row ${row.rowNumber} completed with status: ${status}.`, 
+        level: overallPass ? 'info' : 'error' 
+      });
+
+      return overallPass;
+
+    } catch (rowError) {
+      this.win.webContents.send('run:log', { message: `Row ${row.rowNumber} CRASHED: ${rowError.message}`, level: 'error' });
+      
+      const results = {
+        openUrl: { pass: false, reason: `runner crash: ${rowError.message}` },
+        findText: { pass: null, reason: 'SKIPPED' },
+        findButton: { pass: null, reason: 'SKIPPED' },
+        matchRedirectUrl: { pass: null, reason: 'SKIPPED' },
+        screenshotOnFail: { pass: null, reason: 'SKIPPED' }
+      };
+      
+      this.win.webContents.send('run:row-result', {
+        rowNumber: row.rowNumber,
+        language: mappedData.language || 'N/A',
+        url: mappedData.page_url || 'N/A',
+        results,
+        status: 'FAIL'
+      });
+      return false;
+    } finally {
+      await context.close().catch(() => {});
+    }
+  }
+
   async run() {
     this.win.webContents.send('run:log', { message: 'Starting automation runner...', level: 'info' });
     
@@ -91,9 +261,12 @@ class FlowRunner {
 
     let passedCount = 0;
     let failedCount = 0;
+    const parallelWorkers = this.settings.parallelWorkers || 1;
 
     try {
-      for (const row of rowsToProcess) {
+      this.win.webContents.send('run:log', { message: `Execution initialized with worker concurrency limit: ${parallelWorkers}`, level: 'info' });
+
+      for (let i = 0; i < rowsToProcess.length; i += parallelWorkers) {
         // Handle Pause State
         await this.checkPause();
         
@@ -103,109 +276,23 @@ class FlowRunner {
           break;
         }
 
-        // Map column headers to generic role keys
-        const mappedData = {};
-        for (const [role, colHeader] of Object.entries(this.columnMap)) {
-          if (colHeader && colHeader !== 'ignore') {
-            mappedData[role] = row.data[colHeader] || '';
-          }
-        }
+        const chunk = rowsToProcess.slice(i, i + parallelWorkers);
 
-        this.win.webContents.send('run:log', { message: `--- Row ${row.rowNumber} [Lang: ${mappedData.language || 'N/A'}] ---`, level: 'info' });
+        // Notify client about current active worker count
+        this.win.webContents.send('run:workers', { activeCount: chunk.length });
 
-        // Initialize per-row context for isolation
-        const context = await browser.newContext();
-        
-        try {
-          const page = await context.newPage();
-          page.setDefaultTimeout(this.settings.elementWaitTimeout || 5000);
+        // Process chunk concurrently
+        const outcomes = await Promise.all(chunk.map(row => this.processRow(row, browser)));
 
-          const results = {
-            openUrl: { pass: null, reason: 'SKIPPED' },
-            findText: { pass: null, reason: 'SKIPPED' },
-            findButton: { pass: null, reason: 'SKIPPED' },
-            matchRedirectUrl: { pass: null, reason: 'SKIPPED' }
-          };
+        // Reset worker count back to 0 (idle) for the window
+        this.win.webContents.send('run:workers', { activeCount: 0 });
 
-          // 1. Execute Open URL
-          this.win.webContents.send('run:log', { message: `[1/4] Opening URL: ${mappedData.page_url || 'N/A'}`, level: 'info' });
-          const openRes = await openUrlWidget.execute(page, this.settings, mappedData);
-          results.openUrl = openRes;
-          
-          let continueFlow = openRes.pass;
-
-          // 2. Execute Find Text
-          if (continueFlow || !this.settings.stopOnFail) {
-            this.win.webContents.send('run:log', { message: `[2/4] Searching expected content: "${mappedData.expected_content || ''}"`, level: 'info' });
-            const textRes = await findTextWidget.execute(page, this.settings, mappedData);
-            results.findText = textRes;
-            if (!textRes.pass) continueFlow = false;
-          }
-
-          // 3. Execute Find Button
-          if (continueFlow || !this.settings.stopOnFail) {
-            this.win.webContents.send('run:log', { message: `[3/4] Locating button/CTA: "${mappedData.button_name || ''}"`, level: 'info' });
-            const buttonRes = await findButtonWidget.execute(page, this.settings, mappedData);
-            results.findButton = buttonRes;
-            if (!buttonRes.pass) continueFlow = false;
-          }
-
-          // 4. Execute Match Redirect
-          if (continueFlow || !this.settings.stopOnFail) {
-            this.win.webContents.send('run:log', { message: `[4/4] Clicking and checking redirect contains: "${mappedData.button_redirect_url || ''}"`, level: 'info' });
-            const redirectRes = await matchRedirectUrlWidget.execute(page, this.settings, mappedData);
-            results.matchRedirectUrl = redirectRes;
-          }
-
-          // Compile Row Outcome
-          const overallPass = (
-            results.openUrl.pass !== false &&
-            results.findText.pass !== false &&
-            results.findButton.pass !== false &&
-            results.matchRedirectUrl.pass !== false
-          );
-
-          if (overallPass) {
+        for (const passed of outcomes) {
+          if (passed) {
             passedCount++;
           } else {
             failedCount++;
           }
-
-          const status = overallPass ? 'PASS' : 'FAIL';
-          
-          this.win.webContents.send('run:row-result', {
-            rowNumber: row.rowNumber,
-            language: mappedData.language || 'N/A',
-            url: mappedData.page_url || 'N/A',
-            results,
-            status
-          });
-
-          this.win.webContents.send('run:log', { 
-            message: `Row ${row.rowNumber} completed with status: ${status}.`, 
-            level: overallPass ? 'info' : 'error' 
-          });
-
-        } catch (rowError) {
-          failedCount++;
-          this.win.webContents.send('run:log', { message: `Row ${row.rowNumber} CRASHED: ${rowError.message}`, level: 'error' });
-          
-          const results = {
-            openUrl: { pass: false, reason: `runner crash: ${rowError.message}` },
-            findText: { pass: null, reason: 'SKIPPED' },
-            findButton: { pass: null, reason: 'SKIPPED' },
-            matchRedirectUrl: { pass: null, reason: 'SKIPPED' }
-          };
-          
-          this.win.webContents.send('run:row-result', {
-            rowNumber: row.rowNumber,
-            language: mappedData.language || 'N/A',
-            url: mappedData.page_url || 'N/A',
-            results,
-            status: 'FAIL'
-          });
-        } finally {
-          await context.close().catch(() => {});
         }
       }
     } finally {
